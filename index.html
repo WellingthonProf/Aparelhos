@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Empréstimo de Equipamentos - Tech</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #1a1a2e;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 20px;
+    }
+    h2, h3 {
+      color: #00d4ff;
+    }
+    label, input {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+    input[type="text"] {
+      padding: 10px;
+      width: 100%;
+      border: 1px solid #00d4ff;
+      border-radius: 4px;
+      background-color: #162447;
+      color: #e0e0e0;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      font-size: 1em;
+      background-color: #00d4ff;
+      color: #1a1a2e;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #00a3cc;
+    }
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+      background-color: #162447;
+    }
+    th, td {
+      padding: 10px;
+      text-align: center;
+      border: 1px solid #00d4ff;
+    }
+    .available {
+      background-color: #00d4ff;
+      color: #1a1a2e;
+    }
+    .unavailable {
+      background-color: #cc0000;
+      color: white;
+    }
+    .selected {
+      border: 3px solid #ffcc00;
+    }
+    #loanTable thead {
+      background-color: #1a1a2e;
+      color: #00d4ff;
+    }
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 0.9em;
+      color: #00d4ff;
+    }
+    .filter-input {
+      margin: 10px 0;
+    }
+    #statusMessage {
+      margin-top: 20px;
+      font-size: 1.2em;
+      color: #ffcc00;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Empréstimo de Equipamentos - Tabletes</h2>
+
+  <form id="loanForm" onsubmit="event.preventDefault(); registerLoan();">
+    <label for="professor">Nome do Professor:</label>
+    <input type="text" id="professor" required>
+
+    <label for="classroom">Sala de Aula:</label>
+    <input type="text" id="classroom" required>
+
+    <h3>Selecione os Equipamentos</h3>
+    <table id="equipmentTable"></table>
+
+    <button type="button" onclick="registerLoan()">Registrar Empréstimo</button>
+  </form>
+
+  <h3>Empréstimos Registrados</h3>
+  <table border="1" id="loanTable">
+    <thead>
+      <tr>
+        <th>Equipamento</th>
+        <th>Professor</th>
+        <th>Sala</th>
+        <th>Data e Hora de Empréstimo</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h3>Histórico de Empréstimos</h3>
+  <input type="text" id="searchProfessor" class="filter-input" placeholder="Pesquisar por nome do professor..." oninput="filterHistory()">
+  <button type="button" onclick="clearHistory()">Limpar Histórico</button>
+
+  <table border="1" id="historyTable">
+    <thead>
+      <tr>
+        <th>Equipamento</th>
+        <th>Professor</th>
+        <th>Sala</th>
+        <th>Quantidade de Equipamentos</th>
+        <th>Data e Hora de Empréstimo</th>
+        <th>Data e Hora de Devolução</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="statusMessage"></div>
+
+  <div class="footer">
+    <p>Sistema de Gerenciamento de Equipamentos - Prof° Juvenal Paiva Pereira - Criado por Wellington Brisola</p>
+  </div>
+
+  <script>
+    const totalEquipments = 23;
+    let selectedEquipments = [];
+
+    function generateEquipmentButtons() {
+      const table = document.getElementById("equipmentTable");
+      table.innerHTML = '';
+
+      let row;
+      let loans = JSON.parse(localStorage.getItem('loans')) || [];
+      let usedEquipments = loans.map(loan => loan.equipment.split(', ').map(Number)).flat();
+
+      for (let i = 1; i <= totalEquipments; i++) {
+        if ((i - 1) % 10 === 0) {
+          row = document.createElement('tr');
+          table.appendChild(row);
+        }
+
+        const cell = document.createElement('td');
+        const button = document.createElement('button');
+        button.textContent = i;
+        button.id = `equipment-${i}`;
+        button.type = "button";
+
+        if (usedEquipments.includes(i)) {
+          button.classList.add('unavailable');
+          button.disabled = true;
+        } else {
+          button.classList.add('available');
+          button.onclick = () => selectEquipment(i);
+        }
+
+        cell.appendChild(button);
+        row.appendChild(cell);
+      }
+    }
+
+    function selectEquipment(equipmentNumber) {
+      const button = document.getElementById(`equipment-${equipmentNumber}`);
+      const index = selectedEquipments.indexOf(equipmentNumber);
+      if (index === -1) {
+        selectedEquipments.push(equipmentNumber);
+        button.classList.add('selected');
+      } else {
+        selectedEquipments.splice(index, 1);
+        button.classList.remove('selected');
+      }
+      preserveFormData();
+    }
+
+    function preserveFormData() {
+      const professor = document.getElementById("professor").value;
+      const classroom = document.getElementById("classroom").value;
+      localStorage.setItem('currentProfessor', professor);
+      localStorage.setItem('currentClassroom', classroom);
+    }
+
+    function loadFormData() {
+      const savedProfessor = localStorage.getItem('currentProfessor');
+      const savedClassroom = localStorage.getItem('currentClassroom');
+      if (savedProfessor) {
+        document.getElementById("professor").value = savedProfessor;
+      }
+      if (savedClassroom) {
+        document.getElementById("classroom").value = savedClassroom;
+      }
+    }
+
+    function registerLoan() {
+      const professor = document.getElementById("professor").value;
+      const classroom = document.getElementById("classroom").value;
+      const date = new Date().toLocaleString();
+
+      if (selectedEquipments.length === 0) {
+        alert("Por favor, selecione ao menos um equipamento.");
+        return;
+      }
+
+      const loanData = {
+        equipment: selectedEquipments.join(', '),
+        professor,
+        classroom,
+        date,
+        returnDate: null,
+        quantity: selectedEquipments.length
+      };
+
+      let loans = JSON.parse(localStorage.getItem('loans')) || [];
+      let history = JSON.parse(localStorage.getItem('history')) || [];
+
+      loans.push(loanData);
+      history.push(loanData);
+
+      localStorage.setItem('loans', JSON.stringify(loans));
+      localStorage.setItem('history', JSON.stringify(history));
+
+      selectedEquipments = [];
+      generateEquipmentButtons();
+      renderTable();
+      renderHistory();
+
+      document.getElementById("professor").value = '';
+      document.getElementById("classroom").value = '';
+      document.getElementById("statusMessage").textContent = "Empréstimo registrado com sucesso!";
+    }
+
+    function renderTable() {
+      const tableBody = document.getElementById("loanTable").getElementsByTagName('tbody')[0];
+      tableBody.innerHTML = '';
+      const loans = JSON.parse(localStorage.getItem('loans')) || [];
+
+      loans.forEach((loan, index) => {
+        const newRow = tableBody.insertRow();
+        newRow.innerHTML = `
+          <td>${loan.equipment}</td>
+          <td>${loan.professor}</td>
+          <td>${loan.classroom}</td>
+          <td>${loan.date}</td>
+          <td><button onclick="returnLoan(${index})">Devolver</button></td>
+        `;
+      });
+    }
+
+    function returnLoan(index) {
+      let loans = JSON.parse(localStorage.getItem('loans')) || [];
+      let history = JSON.parse(localStorage.getItem('history')) || [];
+      let loan = loans.splice(index, 1)[0];
+      loan.returnDate = new Date().toLocaleString();
+
+      history = history.map(entry => {
+        if (entry.equipment === loan.equipment && !entry.returnDate && entry.date === loan.date) {
+          entry.returnDate = loan.returnDate;
+        }
+        return entry;
+      });
+
+      localStorage.setItem('loans', JSON.stringify(loans));
+      localStorage.setItem('history', JSON.stringify(history));
+
+      renderTable();
+      generateEquipmentButtons();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem('history')) || [];
+      const tableBody = document.getElementById("historyTable").getElementsByTagName('tbody')[0];
+      tableBody.innerHTML = '';
+
+      history.forEach(entry => {
+        const row = tableBody.insertRow();
+        row.innerHTML = `
+          <td>${entry.equipment}</td>
+          <td>${entry.professor}</td>
+          <td>${entry.classroom}</td>
+          <td>${entry.quantity}</td>
+          <td>${entry.date}</td>
+          <td>${entry.returnDate || '-'}</td>
+        `;
+      });
+    }
+
+    function filterHistory() {
+      const searchValue = document.getElementById("searchProfessor").value.toLowerCase();
+      const history = JSON.parse(localStorage.getItem('history')) || [];
+      const tableBody = document.getElementById("historyTable").getElementsByTagName('tbody')[0];
+      tableBody.innerHTML = '';
+
+      history.filter(entry => entry.professor.toLowerCase().includes(searchValue)).forEach(entry => {
+        const row = tableBody.insertRow();
+        row.innerHTML = `
+          <td>${entry.equipment}</td>
+          <td>${entry.professor}</td>
+          <td>${entry.classroom}</td>
+          <td>${entry.quantity}</td>
+          <td>${entry.date}</td>
+          <td>${entry.returnDate || '-'}</td>
+        `;
+      });
+    }
+
+    function clearHistory() {
+      if (confirm("Tem certeza que deseja limpar todo o histórico?")) {
+        localStorage.removeItem('history');
+        renderHistory();
+      }
+    }
+
+    window.onload = () => {
+      generateEquipmentButtons();
+      renderTable();
+      renderHistory();
+      loadFormData();
+    };
+  </script>
+
+</body>
+</html>
